@@ -199,7 +199,7 @@ public class Main {
     }
 
     private static void readFootprintEntries(Connection connection, int userId) {
-        String query = "SELECT type, amount, carbon_footprint FROM footprintentries WHERE user_id = ?";
+        String query = "SELECT type, amount, carbon_footprint FROM footprint_entries WHERE user_id = ?";
         
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setInt(1, userId);
@@ -225,8 +225,8 @@ public class Main {
     private static void saveCarbonFootprintEntry(Connection connection, int userId, String type, double amount) {
         double carbonFootprint = 0.0;
         DecimalFormat df = new DecimalFormat("#.00"); 
-    
         
+        // Calculate carbon footprint based on type
         switch (type) {
             case "Electricity":
                 carbonFootprint = amount * 0.233;
@@ -245,7 +245,8 @@ public class Main {
                 return;
         }
     
-        String query = "INSERT INTO footprintentries (user_id, type, amount, carbon_footprint) VALUES (?, ?, ?, ?)";
+        // Insert new entry into footprint_entries table
+        String query = "INSERT INTO footprint_entries (user_id, type, amount, carbon_footprint) VALUES (?, ?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setInt(1, userId);
             stmt.setString(2, type);
@@ -255,13 +256,47 @@ public class Main {
             System.out.println(type + " entry added successfully with a carbon footprint of " + df.format(carbonFootprint) + " kg CO2.");
         } catch (SQLException e) {
             System.out.println("Error saving entry to database: " + e.getMessage());
+            return;
+        }
+        updateTotalCarbonFootprint(connection, userId);
+    }
+
+    private static void updateTotalCarbonFootprint(Connection connection, int userId) {
+        String sumQuery = "SELECT SUM(carbon_footprint) AS total FROM footprint_entries WHERE user_id = ?";
+        String updateQuery = "UPDATE carbon_footprint SET totalCarbonFootprint = ? WHERE user_id = ?";
+        String insertQuery = "INSERT INTO carbon_footprint (user_id, totalCarbonFootprint) VALUES (?, ?)";
+    
+        try (PreparedStatement sumStmt = connection.prepareStatement(sumQuery)) {
+            sumStmt.setInt(1, userId);
+            try (ResultSet rs = sumStmt.executeQuery()) {
+                if (rs.next()) {
+                    double totalCarbonFootprint = rs.getDouble("total");
+    
+                    try (PreparedStatement updateStmt = connection.prepareStatement(updateQuery)) {
+                        updateStmt.setDouble(1, totalCarbonFootprint);
+                        updateStmt.setInt(2, userId);
+                        int rowsAffected = updateStmt.executeUpdate();
+    
+                        if (rowsAffected == 0) {
+                            try (PreparedStatement insertStmt = connection.prepareStatement(insertQuery)) {
+                                insertStmt.setInt(1, userId);
+                                insertStmt.setDouble(2, totalCarbonFootprint);
+                                insertStmt.executeUpdate();
+                            }
+                        }
+                    }
+                    System.out.println(String.format("Total Carbon Footprint updated to: %.2f kg CO2.", totalCarbonFootprint));
+                }
+            }
+        } catch (SQLException e) {
+            System.out.println("Error updating total carbon footprint: " + e.getMessage());
         }
     }
 
     private static void displayTotalCarbonFootprint(Connection connection, int userId) {
         DecimalFormat df = new DecimalFormat("#.00");
         try {
-            String query = "SELECT SUM(carbon_footprint) AS total FROM footprintentries WHERE user_id = ?";
+            String query = "SELECT SUM(carbon_footprint) AS total FROM footprint_entries WHERE user_id = ?";
             try (PreparedStatement stmt = connection.prepareStatement(query)) {
                 stmt.setInt(1, userId);
                 try (ResultSet rs = stmt.executeQuery()) {
