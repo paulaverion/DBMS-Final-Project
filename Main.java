@@ -226,7 +226,6 @@ public class Main {
         double carbonFootprint = 0.0;
         DecimalFormat df = new DecimalFormat("#.00"); 
         
-        // Calculate carbon footprint based on type
         switch (type) {
             case "Electricity":
                 carbonFootprint = amount * 0.233;
@@ -245,7 +244,6 @@ public class Main {
                 return;
         }
     
-        // Insert new entry into footprint_entries table
         String query = "INSERT INTO footprint_entries (user_id, type, amount, carbon_footprint) VALUES (?, ?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(query)) {
             stmt.setInt(1, userId);
